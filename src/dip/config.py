@@ -28,9 +28,19 @@ class GeneratorConfig:
 
 
 @dataclass(frozen=True)
+class SparkConfig:
+    bronze_path: str
+    silver_path: str
+    checkpoint_dir: str
+    watermark: str
+    shuffle_partitions: int
+
+
+@dataclass(frozen=True)
 class AppConfig:
     kafka: KafkaConfig
     generator: GeneratorConfig
+    spark: SparkConfig
 
 
 def load_config(path: str | None = None) -> AppConfig:
@@ -38,4 +48,8 @@ def load_config(path: str | None = None) -> AppConfig:
     raw = yaml.safe_load(cfg_path.read_text())
     kafka = dict(raw["kafka"])
     kafka["bootstrap_servers"] = os.getenv("KAFKA_BOOTSTRAP_SERVERS", kafka["bootstrap_servers"])
-    return AppConfig(kafka=KafkaConfig(**kafka), generator=GeneratorConfig(**raw["generator"]))
+    return AppConfig(
+        kafka=KafkaConfig(**kafka),
+        generator=GeneratorConfig(**raw["generator"]),
+        spark=SparkConfig(**raw["spark"]),
+    )

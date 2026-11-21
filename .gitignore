@@ -226,3 +226,8 @@ __marimo__/
 .databricks/
 terraform.tfstate*
 .vscode/
+
+data/
+spark-warehouse/
+metastore_db/
+derby.log
