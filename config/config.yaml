@@ -1,0 +1,15 @@
+kafka:
+  bootstrap_servers: localhost:9092
+  topic: delivery.order_events
+  partitions: 3
+  replication_factor: 1
+
+generator:
+  orders_per_second: 5
+  time_scale: 1.0        # 1.0 = real time; 60 = 1 real second is 1 simulated minute
+  seed: null             # set an int for reproducible output
+  max_orders: 0          # 0 = run until Ctrl+C
+  duplicate_rate: 0.02
+  late_rate: 0.03
+  null_rate: 0.01
+  cancel_rate: 0.05
