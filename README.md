@@ -8,4 +8,4 @@ Python event generator -> Kafka -> PySpark Structured Streaming (Databricks) -> 
 Orchestration: Airflow. Data quality: Great Expectations. ML: XGBoost, PyTorch, MLflow. Serving: FastAPI + Docker. CI: GitHub Actions.
 
 ## Status
-- [ ] Stage 1: Local Kafka + order event generator
+- [x] Stage 1: Local Kafka + order event generator
