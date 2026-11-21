@@ -9,3 +9,4 @@ Orchestration: Airflow. Data quality: Great Expectations. ML: XGBoost, PyTorch, 
 
 ## Status
 - [x] Stage 1: Local Kafka + order event generator
+- [x] Stage 2: PySpark Structured Streaming to bronze/silver Delta tables (local)
