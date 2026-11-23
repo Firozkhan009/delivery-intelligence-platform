@@ -17,7 +17,7 @@ def main() -> None:
 
     cfg = load_config()
     consumer = Consumer({
-        "bootstrap.servers": cfg.kafka.bootstrap_servers,
+        **cfg.kafka.client_config(),
         "group.id": f"check-{uuid.uuid4().hex[:8]}",
         "auto.offset.reset": "earliest",
         "enable.auto.commit": False,

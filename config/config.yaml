@@ -14,8 +14,7 @@ generator:
   null_rate: 0.01
   cancel_rate: 0.05
 spark:
-  bronze_path: data/delta/bronze/order_events
-  silver_path: data/delta/silver/order_events
-  checkpoint_dir: data/checkpoints
+  data_root: data
   watermark: 15 minutes
   shuffle_partitions: 4
+  

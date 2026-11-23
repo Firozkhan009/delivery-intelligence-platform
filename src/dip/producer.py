@@ -16,7 +16,7 @@ class EventProducer:
     def __init__(self, cfg: KafkaConfig) -> None:
         self._cfg = cfg
         self._producer = Producer({
-            "bootstrap.servers": cfg.bootstrap_servers,
+            **cfg.client_config(),
             "acks": "all",
             "enable.idempotence": True,
             "linger.ms": 50,
@@ -26,7 +26,10 @@ class EventProducer:
         self.failed = 0
 
     def ensure_topic(self) -> None:
-        admin = AdminClient({"bootstrap.servers": self._cfg.bootstrap_servers})
+        if self._cfg.security_protocol != "PLAINTEXT":
+            log.info("managed cluster: create topic %s in the provider console", self._cfg.topic)
+            return
+        admin = AdminClient(self._cfg.client_config())
         topic = NewTopic(
             self._cfg.topic,
             num_partitions=self._cfg.partitions,
@@ -51,7 +54,7 @@ class EventProducer:
 
     def send(self, event: dict[str, Any]) -> None:
         payload = json.dumps(event, separators=(",", ":")).encode()
-        key = event["order_id"].encode()  # same order -> same partition -> ordered
+        key = event["order_id"].encode()
         while True:
             try:
                 self._producer.produce(self._cfg.topic, key=key, value=payload,

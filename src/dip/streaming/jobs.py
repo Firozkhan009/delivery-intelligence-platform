@@ -9,6 +9,7 @@ from pyspark.sql.streaming import StreamingQuery
 
 from dip.config import AppConfig, load_config
 from dip.logging_setup import setup_logging
+from dip.streaming.kafka_options import spark_kafka_options
 from dip.streaming.session import build_spark
 from dip.streaming.transforms import clean_events, parse_kafka_events
 
@@ -22,14 +23,7 @@ def _trigger(mode: str) -> dict:
 
 
 def _kafka_stream(spark: SparkSession, cfg: AppConfig) -> DataFrame:
-    return (
-        spark.readStream.format("kafka")
-        .option("kafka.bootstrap.servers", cfg.kafka.bootstrap_servers)
-        .option("subscribe", cfg.kafka.topic)
-        .option("startingOffsets", "earliest")
-        .option("failOnDataLoss", "false")
-        .load()
-    )
+    return spark.readStream.format("kafka").options(**spark_kafka_options(cfg.kafka)).load()
 
 
 def start_bronze(spark: SparkSession, cfg: AppConfig, mode: str) -> StreamingQuery:
