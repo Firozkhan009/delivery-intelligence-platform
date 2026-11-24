@@ -3,8 +3,9 @@ from datetime import datetime
 
 import pytest
 
+from dip.streaming.jobs import make_silver_upsert
 from dip.streaming.session import build_spark
-from dip.streaming.transforms import clean_events, parse_kafka_events
+from dip.streaming.transforms import clean_events, dedupe_batch, parse_kafka_events
 
 
 @pytest.fixture(scope="module")
@@ -34,7 +35,7 @@ def raw_df(spark, payloads):
 
 
 def clean(spark, payloads):
-    return clean_events(parse_kafka_events(raw_df(spark, payloads)), "15 minutes")
+    return clean_events(parse_kafka_events(raw_df(spark, payloads)))
 
 
 def test_parse_types_and_lineage(spark):
@@ -49,11 +50,6 @@ def test_parse_malformed_json_keeps_raw_and_nulls_fields(spark):
     row = parse_kafka_events(raw_df(spark, ["not json"])).collect()[0]
     assert row.event_id is None
     assert row.raw_value == "not json"
-
-
-def test_clean_removes_duplicates(spark):
-    rows = clean(spark, [event(), event(), event(event_id="e2")]).collect()
-    assert sorted(r.event_id for r in rows) == ["e1", "e2"]
 
 
 def test_clean_drops_invalid_rows(spark):
@@ -75,3 +71,19 @@ def test_clean_flags_missing_order_value(spark):
 def test_clean_adds_event_date(spark):
     row = clean(spark, [event()]).collect()[0]
     assert row.event_date.isoformat() == "2026-11-21"
+
+
+def test_dedupe_batch_removes_duplicates(spark):
+    rows = dedupe_batch(clean(spark, [event(), event(), event(event_id="e2")])).collect()
+    assert sorted(r.event_id for r in rows) == ["e1", "e2"]
+
+
+def test_upsert_dedupes_across_batches_and_keeps_late_events(spark, tmp_path):
+    path = str(tmp_path / "silver")
+    upsert = make_silver_upsert(path)
+    newer = event(event_id="n", event_time="2026-11-24T13:00:00.000+00:00")
+    older = event(event_id="o", event_time="2026-11-24T10:00:00.000+00:00")
+    upsert(clean(spark, [newer]), 0)
+    upsert(clean(spark, [older, newer]), 1)
+    ids = sorted(r.event_id for r in spark.read.format("delta").load(path).collect())
+    assert ids == ["n", "o"]

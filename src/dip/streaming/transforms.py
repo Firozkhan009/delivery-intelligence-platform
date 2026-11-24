@@ -26,8 +26,8 @@ def parse_kafka_events(raw: DataFrame) -> DataFrame:
     )
 
 
-def clean_events(bronze: DataFrame, watermark: str) -> DataFrame:
-    """Bronze -> silver: validate, deduplicate on event_id, flag missing order values."""
+def clean_events(bronze: DataFrame) -> DataFrame:
+    """Bronze -> silver rows: validate and derive columns. Deduplication happens in the MERGE."""
     valid = (
         bronze
         .filter(F.col("event_id").isNotNull() & F.col("order_id").isNotNull()
@@ -35,13 +35,8 @@ def clean_events(bronze: DataFrame, watermark: str) -> DataFrame:
         .filter(F.col("event_type").isin(VALID_EVENT_TYPES))
         .filter(F.col("order_value").isNull() | (F.col("order_value") >= 0))
     )
-    deduped = (
-        valid
-        .withWatermark("event_time", watermark)
-        .dropDuplicates(["event_id", "event_time"])
-    )
     return (
-        deduped
+        valid
         .withColumn("event_date", F.to_date("event_time"))
         .withColumn(
             "order_value_missing",
@@ -49,3 +44,8 @@ def clean_events(bronze: DataFrame, watermark: str) -> DataFrame:
         )
         .drop("raw_value")
     )
+
+
+def dedupe_batch(batch: DataFrame) -> DataFrame:
+    """Remove duplicate events inside one micro-batch. Cross-batch dedupe is the MERGE's job."""
+    return batch.dropDuplicates(["event_id"])

@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import logging
 import time
+from collections.abc import Callable
 
+from delta.tables import DeltaTable
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.streaming import StreamingQuery
 
@@ -11,7 +13,7 @@ from dip.config import AppConfig, load_config
 from dip.logging_setup import setup_logging
 from dip.streaming.kafka_options import spark_kafka_options
 from dip.streaming.session import build_spark
-from dip.streaming.transforms import clean_events, parse_kafka_events
+from dip.streaming.transforms import clean_events, dedupe_batch, parse_kafka_events
 
 log = logging.getLogger("dip.streaming")
 
@@ -24,6 +26,30 @@ def _trigger(mode: str) -> dict:
 
 def _kafka_stream(spark: SparkSession, cfg: AppConfig) -> DataFrame:
     return spark.readStream.format("kafka").options(**spark_kafka_options(cfg.kafka)).load()
+
+
+def make_silver_upsert(silver_path: str) -> Callable[[DataFrame, int], None]:
+    """Idempotent upsert: insert only events whose event_id is not already in silver."""
+
+    def upsert(batch_df: DataFrame, batch_id: int) -> None:
+        spark = batch_df.sparkSession
+        batch = dedupe_batch(batch_df).cache()
+        try:
+            unique = batch.count()
+            if not DeltaTable.isDeltaTable(spark, silver_path):
+                batch.write.format("delta").mode("append").partitionBy("event_date").save(silver_path)
+            else:
+                (
+                    DeltaTable.forPath(spark, silver_path).alias("t")
+                    .merge(batch.alias("s"), "t.event_id = s.event_id")
+                    .whenNotMatchedInsertAll()
+                    .execute()
+                )
+            log.info("silver batch %d: unique_events=%d", batch_id, unique)
+        finally:
+            batch.unpersist()
+
+    return upsert
 
 
 def start_bronze(spark: SparkSession, cfg: AppConfig, mode: str) -> StreamingQuery:
@@ -39,14 +65,13 @@ def start_bronze(spark: SparkSession, cfg: AppConfig, mode: str) -> StreamingQue
 
 def start_silver(spark: SparkSession, cfg: AppConfig, mode: str) -> StreamingQuery:
     bronze = spark.readStream.format("delta").load(cfg.spark.bronze_path)
-    silver = clean_events(bronze, cfg.spark.watermark)
+    silver = clean_events(bronze)
     return (
-        silver.writeStream.format("delta")
-        .outputMode("append")
-        .partitionBy("event_date")
+        silver.writeStream
+        .foreachBatch(make_silver_upsert(cfg.spark.silver_path))
         .option("checkpointLocation", f"{cfg.spark.checkpoint_dir}/silver")
         .trigger(**_trigger(mode))
-        .start(cfg.spark.silver_path)
+        .start()
     )
 
 
