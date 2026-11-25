@@ -40,7 +40,7 @@ cfg = load_config()
 for name, start in (("bronze", start_bronze), ("silver", start_silver)):
     query = start(spark, cfg, "available-now")
     query.awaitTermination()
-    rows = sum(p["numInputRows"] for p in query.recentProgress)
+    rows = sum((p["numInputRows"] or 0) for p in query.recentProgress)
     print(f"{name} finished: input_rows={rows}")
 
 # COMMAND ----------

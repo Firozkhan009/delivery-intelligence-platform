@@ -89,7 +89,7 @@ def main() -> None:
         log.info("%s started (mode=%s)", args.layer, args.mode)
         query.awaitTermination()
         batches = query.recentProgress
-        rows = sum(p["numInputRows"] for p in batches)
+        rows = sum((p["numInputRows"] or 0) for p in batches)
         log.info("%s finished: batches=%d input_rows=%d elapsed=%.1fs",
                  args.layer, len(batches), rows, time.monotonic() - started)
     except KeyboardInterrupt:
