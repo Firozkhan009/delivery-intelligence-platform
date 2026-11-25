@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from delta import configure_spark_with_delta_pip
 from pyspark.sql import SparkSession
 
 KAFKA_PACKAGE = "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3"
 
 
 def build_spark(app_name: str, with_kafka: bool = False, shuffle_partitions: int = 4) -> SparkSession:
+    """Local Spark session (not used on Databricks, which provides its own `spark`)."""
+    from delta import configure_spark_with_delta_pip
+
     builder = (
         SparkSession.builder.appName(app_name)
         .master("local[*]")

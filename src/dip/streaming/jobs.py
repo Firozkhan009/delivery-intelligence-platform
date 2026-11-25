@@ -33,21 +33,18 @@ def make_silver_upsert(silver_path: str) -> Callable[[DataFrame, int], None]:
 
     def upsert(batch_df: DataFrame, batch_id: int) -> None:
         spark = batch_df.sparkSession
-        batch = dedupe_batch(batch_df).cache()
-        try:
-            unique = batch.count()
-            if not DeltaTable.isDeltaTable(spark, silver_path):
-                batch.write.format("delta").mode("append").partitionBy("event_date").save(silver_path)
-            else:
-                (
-                    DeltaTable.forPath(spark, silver_path).alias("t")
-                    .merge(batch.alias("s"), "t.event_id = s.event_id")
-                    .whenNotMatchedInsertAll()
-                    .execute()
-                )
-            log.info("silver batch %d: unique_events=%d", batch_id, unique)
-        finally:
-            batch.unpersist()
+        batch = dedupe_batch(batch_df)
+        unique = batch.count()
+        if not DeltaTable.isDeltaTable(spark, silver_path):
+            batch.write.format("delta").mode("append").partitionBy("event_date").save(silver_path)
+        else:
+            (
+                DeltaTable.forPath(spark, silver_path).alias("t")
+                .merge(batch.alias("s"), "t.event_id = s.event_id")
+                .whenNotMatchedInsertAll()
+                .execute()
+            )
+        log.info("silver batch %d: unique_events=%d", batch_id, unique)
 
     return upsert
 
